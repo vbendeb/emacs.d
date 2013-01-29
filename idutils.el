@@ -1,7 +1,5 @@
 (provide 'idutils)
 
-(defvar gid-command "/usr/bin/gid" "The command run by the gid function.")
-(defvar gidf-command "/home/vbendeb/bin/gidf" "The command run by the gidf function.")
 (defvar vb-gid-stack nil)
 (defvar gid-buffer-name "*gid-buffer*")
 (defvar saved-window-config  nil)
@@ -68,14 +66,15 @@
 	   gid-buffer
            gid-buffer-line
 	   vb-match-list
-           new-file)
+           new-file
+	   (src-file-name (buffer-file-name)))
     (if (null gid-root-dir)
 	(setq gid-root-dir default-directory)
       (cd gid-root-dir))
-    (message "word to search is %s" word-to-search)
     (if (null word-to-search)
       (message "nothing to look up!") ; no tag to search
 
+      (message "word to search is %s" word-to-search)
                        ; save location in the current buffer
       (setq saved-location (list (current-buffer) (point)))
 
@@ -83,8 +82,10 @@
       (set-buffer (get-buffer-create gid-buffer-name))
       (erase-buffer)
       (setq gid-buffer (current-buffer))
-      (message "we are in ")
-      (call-process (format "%s" vb-cmd-name) nil gid-buffer nil word-to-search)
+      (call-process "traverse_up" nil
+		    gid-buffer nil
+		    (format "%s %s %s %s" default-directory src-file-name
+			    vb-cmd-name word-to-search))
       (end-of-buffer)
       (if (= 0 (count-lines (point) 1))
 	(message "no tags found for %s" word-to-search)
@@ -100,8 +101,7 @@
     (message "what's wrong?! no match found in %s" gid-buffer-line)
     (setq vb-match-list (match-data))
     (setq vb-gid-stack (reverse (cons saved-location (reverse vb-gid-stack))))
-    (let (
-	   (new-file (format "%s"
+    (let ((new-file (format "%s"
 			       (get-match-n gid-buffer-line vb-match-list 1))))
         (if (/= 0 (string-match "/" (format "%s /" new-file)))
 	  (setq new-file (format "%s/%s" (expand-file-name ".") new-file)))
