@@ -5,7 +5,7 @@
 (defvar saved-window-config  nil)
 (defvar saved-local-map nil)
 (defvar saved-location nil)
-(defvar gid-root-dir nil)
+(defvar vb-root-dir nil)
 
 (setq debug-on-error t)
 
@@ -67,10 +67,8 @@
            gid-buffer-line
 	   vb-match-list
            new-file
-	   (src-file-name (buffer-file-name)))
-    (if (null gid-root-dir)
-	(setq gid-root-dir default-directory)
-      (cd gid-root-dir))
+	   (src-file-name (buffer-file-name))
+	   found-line-count)
     (if (null word-to-search)
       (message "nothing to look up!") ; no tag to search
 
@@ -86,32 +84,40 @@
 		    gid-buffer nil
 		    (format "%s %s %s %s" default-directory src-file-name
 			    vb-cmd-name word-to-search))
+      (beginning-of-buffer)
+      (setq vb-root-dir (buffer-substring (point) (point-at-eol)))
+      (if (not (= (length vb-root-dir) 0))
+	  (progn
+	    (message "root-dir is %s" vb-root-dir)
+	    (delete-region (point) (+ (line-end-position) 1))))
       (end-of-buffer)
-      (if (= 0 (count-lines (point) 1))
+      (setq found-line-count (count-lines (point) 1))
+      (if (= 0 found-line-count)
 	(message "no tags found for %s" word-to-search)
-	(if (= 1 (count-lines (point) 1))
+	(if (= 1 found-line-count)
 	  (progn
 	    (backward-char)
 	    (handle-single-line (buffer-substring (point) 1)))
 	  (handle-multi-line))))))
 
 (defun handle-single-line (gid-buffer-line)
-  (if (equal nil
-	(string-match "\\(^[^:].*\\):\\([0-9]+\\):\\(.*\\)" gid-buffer-line))
-    (message "what's wrong?! no match found in %s" gid-buffer-line)
-    (setq vb-match-list (match-data))
-    (setq vb-gid-stack (reverse (cons saved-location (reverse vb-gid-stack))))
-    (let ((new-file (format "%s"
-			       (get-match-n gid-buffer-line vb-match-list 1))))
-        (if (/= 0 (string-match "/" (format "%s /" new-file)))
-	  (setq new-file (format "%s/%s" (expand-file-name ".") new-file)))
-	(find-file new-file))
-     (goto-line
-          (string-to-number (get-match-n gid-buffer-line vb-match-list 2)))
-     (recenter)))
+  (let (new-file)
+    (if (equal nil
+	       (string-match "\\(^[^:].*\\):\\([0-9]+\\):\\(.*\\)"
+			     gid-buffer-line))
+	(message "what's wrong?! no match found in %s" gid-buffer-line)
+      (setq vb-match-list (match-data))
+      (setq vb-gid-stack (reverse (cons saved-location (reverse vb-gid-stack))))
+      (message "root dir is %s" vb-root-dir)
+      (setq new-file (format "%s/%s" vb-root-dir
+			     (get-match-n gid-buffer-line vb-match-list 1)))
+      (message "new file is %s" new-file)
+      (find-file new-file)
+      (goto-line
+       (string-to-number (get-match-n gid-buffer-line vb-match-list 2)))
+      (recenter))))
 
 (defun handle-multi-line ()
-  (let ()
       ; save window config
     (setq saved-window-config (current-window-configuration))
     (delete-other-windows)
@@ -119,7 +125,7 @@
     (goto-line 1)
     (setq saved-local-map (current-local-map))
     (local-set-key  [?\C-m] 'vb-pick-string)
-    (local-set-key  [?\C-g] 'vb-pick-string)))
+    (local-set-key  [?\C-g] 'vb-pick-string))
 
 (defun vb-pick-string ()
   (interactive)

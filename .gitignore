@@ -1,2 +1,3 @@
 *.elc
+/scala/.svn/*
 /scala/contrib/.svn/
