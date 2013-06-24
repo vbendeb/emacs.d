@@ -6,6 +6,7 @@
 (defvar saved-local-map nil)
 (defvar saved-location nil)
 (defvar vb-root-dir nil)
+(defvar vb-root-map (list))
 
 (setq debug-on-error t)
 
@@ -15,19 +16,19 @@
   (interactive)
   (if (> (length vb-gid-stack) 0)
       (let (list-node)
-	(setq list-node (car (reverse vb-gid-stack)))
-	(setq vb-gid-stack (reverse (cdr (reverse vb-gid-stack))))
-	(if (bufferp (car list-node))
-	  (progn
-	      (switch-to-buffer (car list-node))
-	      (goto-char (cadr list-node)))
-	  (message "buffer must have been deleted?")))
+        (setq list-node (car (reverse vb-gid-stack)))
+        (setq vb-gid-stack (reverse (cdr (reverse vb-gid-stack))))
+        (if (bufferp (car list-node))
+          (progn
+              (switch-to-buffer (car list-node))
+              (goto-char (cadr list-node)))
+          (message "buffer must have been deleted?")))
     (message "at the beginning of the list (%d)" (length vb-gid-stack))))
 
 (defun vb-sync-up ()
    (interactive)
   (let ((list-index 0)
-	  (list-length (length vb-gid-stack))
+          (list-length (length vb-gid-stack))
           list-el)
     (message "\nlist dump (%d/%d):" list-index list-length)
     (while (< list-index list-length)
@@ -61,57 +62,107 @@
        ""; empty string returned if the index exceeds the list size
        (substring vb-string (nth index vb-matches) (nth (1+ index) vb-matches)))))
 
+(defun append-if-new (old-list new-elt)
+  (let (found
+	elt)
+    (setq found nil)
+    (dolist (elt old-list)
+      (if (equal elt new-elt)
+	  (setq found 't)))
+    (if (eq found nil)
+	(append (list new-elt) old-list)
+      old-list)))
+
+(defun get-root-dirs ()
+  (let (bufer-name
+	file-name
+	obj-name
+	(dir-list (list)))
+    (dolist (buffer-name (buffer-list))
+      (setq file-name (buffer-file-name buffer-name))
+      (if file-name
+	  (while (not (equal file-name "/"))
+	    (setq file-name (file-name-directory
+			     (directory-file-name file-name)))
+	    (if (file-accessible-directory-p
+		 (concat file-name ".git"))
+		(progn
+		  (setq dir-list (append-if-new dir-list file-name))
+		  (setq file-name "/"))
+	      (if (file-readable-p
+		   (concat file-name "ID"))
+		  (progn
+		    (setq dir-list (append-if-new dir-list file-name))
+		    (setq file-name "/")))))))
+    (message "dirs are %s" dir-list)
+    dir-list))
+
 (defun vb-gid-body (vb-cmd-name)
   (let ((word-to-search (word-around-point))
-	   gid-buffer
-           gid-buffer-line
-	   vb-match-list
-           new-file
-	   (src-file-name (buffer-file-name))
-	   found-line-count)
+	gid-buffer
+	root-dir-name
+	(root-dir-map (list))
+	(gid-buf-cursor 0)
+	(gid-buf-line-count 0)
+	point-before)
     (if (null word-to-search)
-      (message "nothing to look up!") ; no tag to search
-
-      (message "word to search is %s" word-to-search)
-                       ; save location in the current buffer
+	(message "nothing to look up!") ; no tag to search
+	; save location in the current buffer
+      (setq vb-root-map (list))
       (setq saved-location (list (current-buffer) (point)))
-
-	               ; find information about the tag
+	; find information about the tag
       (set-buffer (get-buffer-create gid-buffer-name))
       (erase-buffer)
+      ; for some not completely understood reason using (delete-char -1) on a
+      ; buffer which has a single '\n' character in it causes a failure. Just
+      ; insert a space into the buffer here and drop it in the end.
+      (insert " ")
       (setq gid-buffer (current-buffer))
-      (call-process "traverse_up" nil
-		    gid-buffer nil
-		    (format "%s %s %s %s" default-directory src-file-name
-			    vb-cmd-name word-to-search))
-      (beginning-of-buffer)
-      (setq vb-root-dir (buffer-substring (point) (point-at-eol)))
-      (if (not (= (length vb-root-dir) 0))
-	  (progn
-	    (message "root-dir is %s" vb-root-dir)
-	    (delete-region (point) (+ (line-end-position) 1))))
-      (end-of-buffer)
-      (setq found-line-count (count-lines (point) 1))
-      (if (= 0 found-line-count)
-	(message "no tags found for %s" word-to-search)
-	(if (= 1 found-line-count)
-	  (progn
-	    (backward-char)
-	    (handle-single-line (buffer-substring (point) 1)))
-	  (handle-multi-line))))))
+      (dolist (root-dir-name (get-root-dirs))
+	(setq point-before (point))
+	(call-process "traverse_up" nil
+		      gid-buffer nil
+		      (format "%s %s %s"
+			      root-dir-name
+			      vb-cmd-name
+			      word-to-search))
+	(if (= (- (point) point-before) 1)
+	    (delete-char -1) ; get rid of the empty string
+	  (setq point-before (point))
+	  (setq gid-buf-line-count (count-lines 1 (point)))
+	  (setq root-dir-map (append
+			      root-dir-map
+			      (list (list
+				     gid-buf-cursor
+				     gid-buf-line-count
+				     root-dir-name))))
+	  (setq gid-buf-cursor gid-buf-line-count)))
+
+      ; remove the space added in the beginning
+      (goto-char (point-min))
+      (delete-char 1)
+      (goto-char (point-max))
+
+      (if (= 0 gid-buf-line-count)
+	  (message "no tags found for %s" word-to-search)
+        (if (= 1 gid-buf-line-count)
+	    (progn
+	      (setq vb-root-dir (car (last (car root-dir-map))))
+	      (backward-char)
+	      (handle-single-line (buffer-substring (point) 1)))
+	  (setq vb-root-map root-dir-map)
+          (handle-multi-line))))))
 
 (defun handle-single-line (gid-buffer-line)
   (let (new-file)
     (if (equal nil
-	       (string-match "\\(^[^:].*\\):\\([0-9]+\\):\\(.*\\)"
-			     gid-buffer-line))
-	(message "what's wrong?! no match found in %s" gid-buffer-line)
+               (string-match "\\(^[^:].*\\):\\([0-9]+\\):\\(.*\\)"
+                             gid-buffer-line))
+        (message "what's wrong?! no match found in %s" gid-buffer-line)
       (setq vb-match-list (match-data))
       (setq vb-gid-stack (reverse (cons saved-location (reverse vb-gid-stack))))
-      (message "root dir is %s" vb-root-dir)
       (setq new-file (format "%s/%s" vb-root-dir
-			     (get-match-n gid-buffer-line vb-match-list 1)))
-      (message "new file is %s" new-file)
+                             (get-match-n gid-buffer-line vb-match-list 1)))
       (find-file new-file)
       (goto-line
        (string-to-number (get-match-n gid-buffer-line vb-match-list 2)))
@@ -129,7 +180,7 @@
 
 (defun vb-pick-string ()
   (interactive)
-  (let (current-line start)
+  (let (current-line start this-line-num)
     (beginning-of-line)
     (setq start (point))
     (next-line 1)
@@ -137,17 +188,25 @@
     (setq current-line (buffer-substring (point) start))
     (set-window-configuration saved-window-config)
     (use-local-map saved-local-map)
-     (if (= 13 last-command-char)
-        (handle-single-line current-line))))
+    (if (= 13 last-command-char)
+	(progn ; need to find the root directory of this line
+	  (setq this-line-num (- (count-lines 1 (point)) 1))
+	  (dolist (vb-root vb-root-map)
+	    (let ((first-line (car vb-root))
+		  (last-line (car (cdr vb-root))))
+	      (if (and (>= this-line-num first-line)
+		       (<= this-line-num last-line))
+		  (setq vb-root-dir (car (last vb-root))))))
+	  (handle-single-line current-line)))))
 
 (defun word-around-point ()
   "Return the word around the point as a string."
   (save-excursion
     (if (not (eobp))
-	(forward-char 1))
+        (forward-char 1))
     (forward-word -1)
     (forward-word 1)
     (forward-sexp -1)
     (buffer-substring (point) (progn
-				(forward-sexp 1)
-				(point)))))
+                                (forward-sexp 1)
+                                (point)))))
