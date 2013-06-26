@@ -98,13 +98,14 @@
     dir-list))
 
 (defun vb-gid-body (vb-cmd-name)
-  (let ((word-to-search (word-around-point))
-	gid-buffer
-	root-dir-name
-	(root-dir-map (list))
-	(gid-buf-cursor 0)
+  (let ((gid-buf-cursor 0)
 	(gid-buf-line-count 0)
-	point-before)
+	(root-dir-map (list))
+	(word-to-search (word-around-point))
+	added-chars
+	gid-buffer
+	point-before
+	root-dir-name)
     (if (null word-to-search)
 	(message "nothing to look up!") ; no tag to search
 	; save location in the current buffer
@@ -126,8 +127,9 @@
 			      root-dir-name
 			      vb-cmd-name
 			      word-to-search))
-	(if (= (- (point) point-before) 1)
-	    (delete-char -1) ; get rid of the empty string
+	(setq added-chars (- (point) point-before))
+	(if (<= added-chars 1)
+	    (delete-char (- added-chars)) ; get rid of the empty string
 	  (setq point-before (point))
 	  (setq gid-buf-line-count (count-lines 1 (point)))
 	  (setq root-dir-map (append
@@ -180,7 +182,9 @@
 
 (defun vb-pick-string ()
   (interactive)
-  (let (current-line start this-line-num)
+  (let (current-line
+	start
+	this-line-num)
     (beginning-of-line)
     (setq start (point))
     (next-line 1)
