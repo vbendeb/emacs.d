@@ -192,7 +192,7 @@
     (setq current-line (buffer-substring (point) start))
     (set-window-configuration saved-window-config)
     (use-local-map saved-local-map)
-    (if (= 13 last-command-char)
+    (if (= 13 last-command-event)
 	(progn ; need to find the root directory of this line
 	  (setq this-line-num (- (count-lines 1 (point)) 1))
 	  (dolist (vb-root vb-root-map)

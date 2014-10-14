@@ -16,7 +16,7 @@
  (valid point numbers are between 1 and 9).
  To return to the set point use <\M-j><number>"
     (interactive)
-     (let (point-name (cmd-key (normalize-cmd-key last-command-char)))
+     (let (point-name (cmd-key (normalize-cmd-key last-command-event)))
 
         (if (or (< cmd-key 1) (> cmd-key 9))
             (message "the key is %d how did you get here?" cmd-key)

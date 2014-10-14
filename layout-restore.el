@@ -328,7 +328,7 @@ after `switch-to-buffer'."
   (if layout-restore-after-otherwindow
       (layout-restore)))
 
-(ad-activate 'switch-to-buffer)
+;(ad-activate 'switch-to-buffer)
 (ad-activate 'kill-buffer)
 (ad-activate 'other-window)
 
