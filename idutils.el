@@ -78,12 +78,16 @@
 	(append (list new-elt) old-list)
       old-list)))
 
-(defun get-root-dirs ()
+(defun get-root-dirs (curbuf)
   (let (bufer-name
 	file-name
 	obj-name
+	buf-list
 	(dir-list (list)))
-    (dolist (buffer-name (buffer-list))
+    (if local-only-gid
+	(setq buf-list (list curbuf))
+      (setq buf-list (buffer-list)))
+    (dolist (buffer-name buf-list)
       (setq file-name (buffer-file-name buffer-name))
       (if file-name
 	  (while (not (equal file-name "/"))
@@ -124,7 +128,7 @@
       ; insert a space into the buffer here and drop it in the end.
       (insert " ")
       (setq gid-buffer (current-buffer))
-      (dolist (root-dir-name (get-root-dirs))
+      (dolist (root-dir-name (get-root-dirs (car saved-location)))
 	(setq point-before (point))
 	(call-process "traverse_up" nil
 		      gid-buffer nil
