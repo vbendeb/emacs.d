@@ -7,10 +7,15 @@
 (defvar saved-location nil)
 (defvar vb-root-dir nil)
 (defvar vb-root-map (list))
+(defvar local-only-gid nil)
 
 (setq debug-on-error t)
 
 (defun jump-to-position ())
+(defun toggle-gid-scope ()
+  (interactive)
+  (setq local-only-gid (not local-only-gid))
+  (message "local only set to %s" local-only-gid))
 
 (defun vb-previous-tag ()
   (interactive)
