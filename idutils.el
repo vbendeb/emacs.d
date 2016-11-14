@@ -31,7 +31,7 @@
     (message "at the beginning of the list (%d)" (length vb-gid-stack))))
 
 (defun vb-sync-up ()
-   (interactive)
+  (interactive)
   (let ((list-index 0)
           (list-length (length vb-gid-stack))
           list-el)
