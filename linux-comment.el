@@ -1,22 +1,44 @@
 (require 'cl)
-(defun get-prefix (string)
-  "replace with spaces all printable characers but the last one
-   in the passed in string, then convert series of spaces into
-   tabs as appropriate and return the generated string"
-
-  (with-temp-buffer
-    (insert string)
-    (goto-char (point-min))
-    (while (re-search-forward "[^[:blank:]]" nil t)
-       (replace-match " "))
-    (goto-char (point-max))
-    (delete-char -1)
-    (insert "* ")
-    (tabify (point-min) (point-max))
-    (buffer-string)))
 
 (defun single-line-comment(open-point close-point)
   (eq (line-number-at-pos open-point) (line-number-at-pos close-point)))
+
+(defun* check-and-handle-cpp-comment()
+  (if (not (re-search-backward "//" (line-beginning-position) t))
+      (return-from check-and-handle-cpp-comment nil))
+  (c-fill-paragraph)
+  (let ((current-line (line-number-at-pos))
+	first-line
+	last-line
+	new-text)
+    (setq first-line current-line
+	  last-line current-line)
+    (save-excursion
+      (catch 'lowest
+	(while (> first-line 1)
+	  (progn
+	    (forward-line -1)
+	    (if (re-search-forward "^[[:blank:]]*//" (line-end-position) t)
+		(setq first-line (- first-line 1))
+	      (throw 'lowest t))))))
+    (save-excursion
+      (catch 'highest
+	(while (not (eobp))
+	  (progn
+	    (forward-line 1)
+	    (if (re-search-forward "^[[:blank:]]*//" (line-end-position) t)
+		(setq last-line (+ last-line 1))
+	      (throw 'highest t))))))
+    (if (not (eq first-line last-line))
+	(progn
+	  (goto-line current-line)
+	  (re-search-forward "^[[:blank:]]*//" (line-end-position) t)
+	  (setq new-text (buffer-substring (line-beginning-position) (point)))
+	  (goto-line first-line)
+	  (insert (concat new-text "\n"))
+	  (goto-line (+ last-line 1))
+	  (goto-char (line-end-position))
+	  (insert (concat "\n" new-text))))))
 
 (defun* c-comment-handler()
   "reformat a comment block."
@@ -38,8 +60,10 @@
     (if (or (eq nil open-point)
 	    (eq nil close-point)
 	    (< next-open-point close-point))
-	(progn (message "not in a comment block")
-	       (return-from c-comment-handler nil)))
+        ; we are not in a regular comment, maybe this is a c++ comment?
+	(progn
+	  (save-excursion (check-and-handle-cpp-comment))
+	  (return-from c-comment-handler nil)))
     (delete-trailing-whitespace open-point close-point)
     (c-fill-paragraph)
     (save-excursion (setq open-point (re-search-backward openc 0 t)))
