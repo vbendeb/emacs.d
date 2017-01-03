@@ -59,7 +59,8 @@
     ; comment block.
     (if (or (eq nil open-point)
 	    (eq nil close-point)
-	    (< next-open-point close-point))
+	    (and next-open-point
+		 (< next-open-point close-point)))
         ; we are not in a regular comment, maybe this is a c++ comment?
 	(progn
 	  (save-excursion (check-and-handle-cpp-comment))
@@ -86,7 +87,7 @@
 	  (replace-match (concat new-text "/"))
 	(forward-char -3)
 	(delete-char 3)
-	(insert (concat "\n" new-text "/\n")))
+	(insert (concat "\n" new-text "/")))
 
       ; and now let's handle the rest of the comment block
       (goto-char open-point)
