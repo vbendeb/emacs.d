@@ -1,3 +1,4 @@
 *.elc
 /scala/.svn/*
 /scala/contrib/.svn/
+/rust-mode/
