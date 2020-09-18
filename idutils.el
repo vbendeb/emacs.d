@@ -68,9 +68,8 @@
        (substring vb-string (nth index vb-matches) (nth (1+ index) vb-matches)))))
 
 (defun append-if-new (old-list new-elt)
-  (let (found
+  (let ((found nil)
 	elt)
-    (setq found nil)
     (dolist (elt old-list)
       (if (equal elt new-elt)
 	  (setq found 't)))
@@ -78,11 +77,24 @@
 	(append (list new-elt) old-list)
       old-list)))
 
+(defun get-git-root (dir-name)
+  (let ((tmp-buffer (generate-new-buffer "gid-tmp"))
+	(root-dir nil))
+    (call-process "mygit" nil tmp-buffer nil dir-name)
+    (if (> (buffer-size tmp-buffer) 0)
+	(setq root-dir
+	      (substring (with-current-buffer tmp-buffer (buffer-string)) 0 -1)))
+    (with-current-buffer tmp-buffer
+      (set-buffer-modified-p nil)
+      (kill-buffer tmp-buffer))
+    root-dir))
+
 (defun get-root-dirs (curbuf)
-  (let (bufer-name
+  (let (buf-list
+	bufer-name
 	file-name
+	git-root
 	obj-name
-	buf-list
 	(dir-list (list)))
     (if local-only-gid
 	(setq buf-list (list curbuf))
@@ -90,19 +102,17 @@
     (dolist (buffer-name buf-list)
       (setq file-name (buffer-file-name buffer-name))
       (if file-name
-	  (while (not (equal file-name "/"))
-	    (setq file-name (file-name-directory
-			     (directory-file-name file-name)))
-	    (if (file-accessible-directory-p
-		 (concat file-name ".git"))
-		(progn
-		  (setq dir-list (append-if-new dir-list file-name))
-		  (setq file-name "/"))
-	      (if (file-readable-p
-		   (concat file-name "ID"))
-		  (progn
-		    (setq dir-list (append-if-new dir-list file-name))
-		    (setq file-name "/")))))))
+	  (progn
+	    (setq git-root (get-git-root (file-name-directory file-name)))
+	    (if (> (length git-root) 0)
+		(setq dir-list (append-if-new dir-list git-root))
+	      (while (not (equal file-name "/"))
+		(setq file-name (file-name-directory
+				 (directory-file-name file-name)))
+		(if (file-readable-p (concat file-name "ID"))
+		    (progn
+		      (setq dir-list (append-if-new dir-list file-name))
+		      (setq file-name "/"))))))))
     (message "dirs are %s" dir-list)
     dir-list))
 
